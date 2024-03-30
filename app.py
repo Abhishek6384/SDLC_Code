@@ -34,7 +34,7 @@ def get_chunks(raw_text):
 
 def get_vectorstore(chunks_data):
     
-    embeddings=HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
+    embeddings=HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-large")
     vectorstore = FAISS.from_texts(texts=chunks_data, embedding=embeddings)
     return vectorstore
 
@@ -52,53 +52,65 @@ def get_conversation_chain(vectorstore):
 
 def handle_user_input(user_question):
     response=st.session_state.conversation({"question":user_question})
-    st.write(response)
+    st.session_state.chat_history=response['chat_history']
+
+    for i,j in enumerate(st.session_state.chat_history):
+            if i%2==0:
+                st.write(user_template.replace("{{MESSAGE}}",j.content),unsafe_allow_html=True)
+            else:
+                st.write(bot_template.replace("{{MESSAGE}}",j.content),unsafe_allow_html=True) 
+
+    
+    
 
 
 
 
 def main():
     load_dotenv()
-    st.set_page_config(page_title="Chat with multiple PDFs",page_icon=":books:")
+    st.set_page_config(page_title="Chat with multiple PDFs",page_icon=":page_facing_up:")
     st.write(css, unsafe_allow_html=True)
     if "conversation" not in st.session_state:
         st.session_state.conversation = None
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history=None
     
     # title of the page
     
 
     #header of the page
-    st.header("Chat with multiple PDFs :books:")
+    st.header("Chat with multiple PDFs :page_facing_up:")
 
-    #taking text input
+   
+    
+    # st.subheader("Your uploaded documents: ")
+    pdf_docs=st.file_uploader("Upload your PDFs here and click on 'Analyse'",accept_multiple_files=True)
+    if st.button("Analyse"):
+        with st.spinner("Analyzing"):
+            time.sleep(3)
+            
+            #get the pdf text   
+            raw_text=get_pdf_text(pdf_docs)
+            # st.write(raw_text)
+
+            #get the text chunks
+            chunks_data=get_chunks(raw_text)
+            # st.write(chunks_data)
+            
+            
+            #create vector store
+            vectorstore=get_vectorstore(chunks_data)
+
+            # create conversation chain
+            # the variable conversation should not be reinitialized that's why we are making it as a session variable.
+            
+            st.session_state.conversation=get_conversation_chain(vectorstore)
+     #taking text input
     user_question=st.text_input("Ask any question about your document")
     if user_question:
         handle_user_input(user_question)
 
-    st.write(user_template.replace("{{MSG}}","Hi AI"),unsafe_allow_html=True)
-    st.write(bot_template.replace("{{MSG}}","Hi Human"),unsafe_allow_html=True)
-    with st.sidebar:
-        st.subheader("Your uploaded documents: ")
-        pdf_docs=st.file_uploader("Upload your PDFs here and click on 'Process'",accept_multiple_files=True)
-        if st.button("Process"):
-            with st.spinner("Processing"):
-                time.sleep(2)
-                
-                #get the pdf text   
-                raw_text=get_pdf_text(pdf_docs)
-                # st.write(raw_text)
-
-                #get the text chunks
-                chunks_data=get_chunks(raw_text)
-                # st.write(chunks_data)
-                
-                
-                #create vector store
-                vectorstore=get_vectorstore(chunks_data)
-
-                # create conversation chain
-                # the variable conversation should not be reinitialized that's why we are making it as a session variable.
-                # Also, we can use 'conversation' variable outside the scope of the sidebar
-                st.session_state.conversation=get_conversation_chain(vectorstore)   
+    # st.write(user_template.replace("{{MESSAGE}}","Hi AI"),unsafe_allow_html=True)
+    # st.write(bot_template.replace("{{MESSAGE}}","Hi Human"),unsafe_allow_html=True)   
 if __name__=='__main__':
     main()
